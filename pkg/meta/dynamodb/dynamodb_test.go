@@ -105,9 +105,9 @@ func TestIterator(t *testing.T) {
 
 func TestIteratorErrors(t *testing.T) {
 	Convey("errors", t, func() {
-		customResolver := aws.EndpointResolverWithOptionsFunc(
+		customResolver := aws.EndpointResolverWithOptionsFunc( //nolint: staticcheck
 			func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-				return aws.Endpoint{
+				return aws.Endpoint{ //nolint: staticcheck
 					PartitionID:   "aws",
 					URL:           "endpoint",
 					SigningRegion: region,
@@ -115,7 +115,7 @@ func TestIteratorErrors(t *testing.T) {
 			})
 
 		cfg, err := config.LoadDefaultConfig(context.Background(), config.WithRegion("region"),
-			config.WithEndpointResolverWithOptions(customResolver))
+			config.WithEndpointResolverWithOptions(customResolver)) //nolint: staticcheck
 		So(err, ShouldBeNil)
 
 		repoMetaAttributeIterator := mdynamodb.NewBaseDynamoAttributesIterator(
@@ -166,7 +166,7 @@ func TestWrapperErrors(t *testing.T) {
 
 	//nolint: contextcheck
 	Convey("Errors", t, func() {
-		params := mdynamodb.DBDriverParameters{ //nolint:contextcheck
+		params := mdynamodb.DBDriverParameters{ //nolint:contextcheck,staticcheck
 			Endpoint:               endpoint,
 			Region:                 region,
 			RepoMetaTablename:      repoMetaTablename,
@@ -236,6 +236,16 @@ func TestWrapperErrors(t *testing.T) {
 			})
 		})
 		Convey("FilterImageMeta", func() {
+			Convey("FilterImageMeta with duplicate digests", func() {
+				image := CreateRandomImage()
+
+				err := dynamoWrapper.SetRepoReference(ctx, "repo", "tag", image.AsImageMeta())
+				So(err, ShouldBeNil)
+
+				_, err = dynamoWrapper.FilterImageMeta(ctx, []string{image.DigestStr(), image.DigestStr()})
+				So(err, ShouldNotBeNil)
+			})
+
 			Convey("manifest meta unmarshal error", func() {
 				err = setImageMeta(image.Digest(), badProtoBlob, dynamoWrapper) //nolint: contextcheck
 				So(err, ShouldBeNil)
@@ -243,6 +253,7 @@ func TestWrapperErrors(t *testing.T) {
 				_, err = dynamoWrapper.FilterImageMeta(ctx, []string{image.DigestStr()})
 				So(err, ShouldNotBeNil)
 			})
+
 			Convey("MediaType ImageIndex, getProtoImageMeta fails", func() {
 				err := dynamoWrapper.SetImageMeta(multiarchImageMeta.Digest, multiarchImageMeta) //nolint: contextcheck
 				So(err, ShouldBeNil)
