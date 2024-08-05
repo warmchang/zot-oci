@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net"
@@ -24,9 +25,9 @@ import (
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
 	godigest "github.com/opencontainers/go-digest"
-	"github.com/zitadel/oidc/pkg/client/rp"
-	httphelper "github.com/zitadel/oidc/pkg/http"
-	"github.com/zitadel/oidc/pkg/oidc"
+	"github.com/zitadel/oidc/v3/pkg/client/rp"
+	httphelper "github.com/zitadel/oidc/v3/pkg/http"
+	"github.com/zitadel/oidc/v3/pkg/oidc"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/oauth2"
 	githubOAuth "golang.org/x/oauth2/github"
@@ -333,7 +334,7 @@ func (amw *AuthnMiddleware) tryAuthnHandlers(ctlr *Controller) mux.MiddlewareFun
 
 		for provider := range ctlr.Config.HTTP.Auth.OpenID.Providers {
 			if config.IsOpenIDSupported(provider) {
-				rp := NewRelyingPartyOIDC(ctlr.Config, provider, ctlr.Log)
+				rp := NewRelyingPartyOIDC(context.TODO(), ctlr.Config, provider, ctlr.Log)
 				ctlr.RelyingParties[provider] = rp
 			} else if config.IsOauth2Supported(provider) {
 				rp := NewRelyingPartyGithub(ctlr.Config, provider, ctlr.Log)
@@ -434,6 +435,7 @@ func bearerAuthHandler(ctlr *Controller) mux.MiddlewareFunc {
 
 				return
 			}
+
 			acCtrlr := NewAccessController(ctlr.Config)
 			vars := mux.Vars(request)
 			name := vars["name"]
@@ -608,10 +610,10 @@ func (rh *RouteHandler) AuthURLHandler() http.HandlerFunc {
 	}
 }
 
-func NewRelyingPartyOIDC(config *config.Config, provider string, log log.Logger) rp.RelyingParty {
+func NewRelyingPartyOIDC(ctx context.Context, config *config.Config, provider string, log log.Logger) rp.RelyingParty {
 	issuer, clientID, clientSecret, redirectURI, scopes, options := getRelyingPartyArgs(config, provider, log)
 
-	relyingParty, err := rp.NewRelyingPartyOIDC(issuer, clientID, clientSecret, redirectURI, scopes, options...)
+	relyingParty, err := rp.NewRelyingPartyOIDC(ctx, issuer, clientID, clientSecret, redirectURI, scopes, options...)
 	if err != nil {
 		log.Panic().Err(err).Str("issuer", issuer).Str("redirectURI", redirectURI).Strs("scopes", scopes).
 			Msg("failed to get new relying party oicd")
@@ -661,7 +663,7 @@ func getRelyingPartyArgs(cfg *config.Config, provider string, log log.Logger) (
 	keyPath := cfg.HTTP.Auth.OpenID.Providers[provider].KeyPath
 	baseURL := net.JoinHostPort(cfg.HTTP.Address, port)
 
-	callback := constants.CallbackBasePath + fmt.Sprintf("/%s", provider)
+	callback := constants.CallbackBasePath + "/" + provider
 
 	var redirectURI string
 
@@ -681,7 +683,7 @@ func getRelyingPartyArgs(cfg *config.Config, provider string, log log.Logger) (
 		rp.WithVerifierOpts(rp.WithIssuedAtOffset(issuedAtOffset)),
 	}
 
-	key := securecookie.GenerateRandomKey(32) //nolint: gomnd
+	key := securecookie.GenerateRandomKey(32) //nolint:mnd
 
 	cookieHandler := httphelper.NewCookieHandler(key, key, httphelper.WithMaxAge(relyingPartyCookieMaxAge))
 	options = append(options, rp.WithCookieHandler(cookieHandler))
@@ -740,7 +742,7 @@ func getUsernamePasswordBasicAuth(request *http.Request) (string, string, error)
 		return "", "", zerr.ErrParsingAuthHeader
 	}
 
-	splitStr := strings.SplitN(basicAuth, " ", 2) //nolint: gomnd
+	splitStr := strings.SplitN(basicAuth, " ", 2) //nolint:mnd
 	if len(splitStr) != 2 || strings.ToLower(splitStr[0]) != "basic" {
 		return "", "", zerr.ErrParsingAuthHeader
 	}
@@ -750,8 +752,8 @@ func getUsernamePasswordBasicAuth(request *http.Request) (string, string, error)
 		return "", "", err
 	}
 
-	pair := strings.SplitN(string(decodedStr), ":", 2) //nolint: gomnd
-	if len(pair) != 2 {                                //nolint: gomnd
+	pair := strings.SplitN(string(decodedStr), ":", 2) //nolint:mnd
+	if len(pair) != 2 {                                //nolint:mnd
 		return "", "", zerr.ErrParsingAuthHeader
 	}
 
@@ -878,7 +880,7 @@ func hashUUID(uuid string) string {
 	digester := sha256.New()
 	digester.Write([]byte(uuid))
 
-	return godigest.NewDigestFromEncoded(godigest.SHA256, fmt.Sprintf("%x", digester.Sum(nil))).Encoded()
+	return godigest.NewDigestFromEncoded(godigest.SHA256, hex.EncodeToString(digester.Sum(nil))).Encoded()
 }
 
 /*

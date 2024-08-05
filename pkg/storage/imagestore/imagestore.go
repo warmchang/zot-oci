@@ -2,6 +2,7 @@ package imagestore
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,7 +14,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/docker/distribution/registry/storage/driver"
+	"github.com/distribution/distribution/v3/registry/storage/driver"
 	guuid "github.com/gofrs/uuid"
 	godigest "github.com/opencontainers/go-digest"
 	ispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -224,7 +225,7 @@ func (is *ImageStore) ValidateRepo(name string) (bool, error) {
 		return false, zerr.ErrRepoNotFound
 	}
 
-	//nolint:gomnd
+	//nolint:mnd
 	if len(files) < 2 {
 		return false, zerr.ErrRepoBadVersion
 	}
@@ -375,7 +376,7 @@ func (is *ImageStore) GetNextRepository(repo string) (string, error) {
 	}
 
 	if errors.Is(err, io.EOF) ||
-		(errors.As(err, driverErr) && errors.Is(driverErr.Enclosed, io.EOF)) {
+		(errors.As(err, driverErr) && errors.Is(driverErr.Detail, io.EOF)) {
 		return store, nil
 	}
 
@@ -845,7 +846,7 @@ func (is *ImageStore) FinishBlobUpload(repo, uuid string, body io.Reader, dstDig
 		return zerr.ErrUploadNotFound
 	}
 
-	if err := fileWriter.Commit(); err != nil {
+	if err := fileWriter.Commit(context.Background()); err != nil {
 		is.log.Error().Err(err).Msg("failed to commit file")
 
 		return err
@@ -945,13 +946,13 @@ func (is *ImageStore) FullBlobUpload(repo string, body io.Reader, dstDigest godi
 		return "", -1, err
 	}
 
-	if err := blobFile.Commit(); err != nil {
+	if err := blobFile.Commit(context.Background()); err != nil {
 		is.log.Error().Err(err).Str("blob", src).Msg("failed to commit blob")
 
 		return "", -1, err
 	}
 
-	srcDigest := godigest.NewDigestFromEncoded(dstDigestAlgorithm, fmt.Sprintf("%x", digester.Sum(nil)))
+	srcDigest := godigest.NewDigestFromEncoded(dstDigestAlgorithm, hex.EncodeToString(digester.Sum(nil)))
 	if srcDigest != dstDigest {
 		is.log.Error().Str("srcDigest", srcDigest.String()).
 			Str("dstDigest", dstDigest.String()).Msg("actual digest not equal to expected digest")
@@ -1103,7 +1104,7 @@ func (is *ImageStore) DeleteBlobUpload(repo, uuid string) error {
 
 	defer writer.Close()
 
-	if err := writer.Cancel(); err != nil {
+	if err := writer.Cancel(context.Background()); err != nil {
 		is.log.Error().Err(err).Str("blobUploadPath", blobUploadPath).Msg("failed to delete blob upload")
 
 		return err
@@ -1125,7 +1126,7 @@ func (is *ImageStore) GetAllDedupeReposCandidates(digest godigest.Digest) ([]str
 	}
 
 	if is.cache == nil {
-		return nil, nil
+		return nil, nil //nolint:nilnil
 	}
 
 	is.RLock(&lockLatency)
@@ -1996,7 +1997,7 @@ func (is *ImageStore) PopulateStorageMetrics(interval time.Duration, sch *schedu
 		ImgStore: is,
 		Metrics:  is.metrics,
 		Log:      is.log,
-		MaxDelay: 15, //nolint:gomnd
+		MaxDelay: 15, //nolint:mnd
 	}
 
 	sch.SubmitGenerator(generator, interval, scheduler.HighPriority)

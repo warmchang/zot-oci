@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/docker/distribution/registry/storage/driver"
+	"github.com/distribution/distribution/v3/registry/storage/driver"
 	guuid "github.com/gofrs/uuid"
 	godigest "github.com/opencontainers/go-digest"
 	ispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -85,8 +85,10 @@ func RunCheckAllBlobsIntegrityTests( //nolint: thelper
 		// initialize repo
 		err := imgStore.InitRepo(repoName)
 		So(err, ShouldBeNil)
+
 		ok := imgStore.DirExists(path.Join(imgStore.RootDir(), repoName))
 		So(ok, ShouldBeTrue)
+
 		storeCtlr := storage.StoreController{}
 		storeCtlr.DefaultStore = imgStore
 		So(storeCtlr.GetImageStore(repoName), ShouldResemble, imgStore)
@@ -117,6 +119,7 @@ func RunCheckAllBlobsIntegrityTests( //nolint: thelper
 			res, err = storeCtlr.CheckAllBlobsIntegrity(context.Background())
 			res.PrintScrubResults(buff)
 			So(err, ShouldBeNil)
+
 			str = space.ReplaceAllString(buff.String(), " ")
 			actual = strings.TrimSpace(str)
 			So(actual, ShouldContainSubstring, "REPOSITORY TAG STATUS AFFECTED BLOB ERROR")

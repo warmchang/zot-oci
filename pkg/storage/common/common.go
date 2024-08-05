@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/distribution/registry/storage/driver"
+	"github.com/distribution/distribution/v3/registry/storage/driver"
 	godigest "github.com/opencontainers/go-digest"
 	"github.com/opencontainers/image-spec/schema"
 	imeta "github.com/opencontainers/image-spec/specs-go"
@@ -234,6 +234,7 @@ func CheckIfIndexNeedsUpdate(index *ispec.Index, desc *ispec.Descriptor,
 				log.Error().Err(err).
 					Str("old mediaType", manifest.MediaType).
 					Str("new mediaType", desc.MediaType).Msg("cannot change media-type")
+
 				reason := fmt.Sprintf("changing manifest media-type from \"%s\" to \"%s\" is disallowed",
 					manifest.MediaType, desc.MediaType)
 
@@ -860,7 +861,7 @@ func (gen *DedupeTaskGenerator) Next() (scheduler.Task, error) {
 			// no repositories in storage, no need to continue
 			gen.done = true
 
-			return nil, nil
+			return nil, nil //nolint:nilnil
 		}
 	}
 
@@ -878,7 +879,7 @@ func (gen *DedupeTaskGenerator) Next() (scheduler.Task, error) {
 
 		gen.done = true
 
-		return nil, nil
+		return nil, nil //nolint:nilnil
 	}
 
 	// mark digest as processed before running its task
@@ -975,8 +976,9 @@ func (gen *StorageMetricsInitGenerator) Next() (scheduler.Task, error) {
 	if repo == "" {
 		gen.done = true
 
-		return nil, nil
+		return nil, nil //nolint:nilnil
 	}
+
 	gen.lastRepo = repo
 
 	return NewStorageMetricsTask(gen.ImgStore, gen.Metrics, repo, gen.Log), nil

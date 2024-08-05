@@ -19,8 +19,8 @@ import (
 	ispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/project-zot/mockoidc"
 	. "github.com/smartystreets/goconvey/convey"
-	"github.com/zitadel/oidc/pkg/client/rp"
-	"github.com/zitadel/oidc/pkg/oidc"
+	"github.com/zitadel/oidc/v3/pkg/client/rp"
+	"github.com/zitadel/oidc/v3/pkg/oidc"
 	"golang.org/x/oauth2"
 
 	zerr "zotregistry.dev/zot/errors"
@@ -47,12 +47,14 @@ func TestRoutes(t *testing.T) {
 		username, seedUser := test.GenerateRandomString()
 		password, seedPass := test.GenerateRandomString()
 		htpasswdPath := test.MakeHtpasswdFileFromString(test.GetCredString(username, password))
+
 		defer os.Remove(htpasswdPath)
 
 		mockOIDCServer, err := mockoidc.Run()
 		if err != nil {
 			panic(err)
 		}
+
 		defer func() {
 			err := mockOIDCServer.Shutdown()
 			if err != nil {
@@ -103,7 +105,7 @@ func TestRoutes(t *testing.T) {
 			request, _ := http.NewRequestWithContext(ctx, http.MethodGet, baseURL, nil)
 			response := httptest.NewRecorder()
 
-			tokens := &oidc.Tokens{}
+			tokens := &oidc.Tokens[*oidc.IDTokenClaims]{}
 			relyingParty, err := rp.NewRelyingPartyOAuth(&oauth2.Config{})
 			So(err, ShouldBeNil)
 
@@ -305,6 +307,7 @@ func TestRoutes(t *testing.T) {
 				ctlr.StoreController.DefaultStore = ism
 				request, _ := http.NewRequestWithContext(context.Background(), http.MethodDelete, baseURL, nil)
 				request = mux.SetURLVars(request, urlVars)
+
 				for k, v := range headers {
 					request.Header.Add(k, v)
 				}

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	storagedriver "github.com/docker/distribution/registry/storage/driver"
+	storagedriver "github.com/distribution/distribution/v3/registry/storage/driver"
 	. "github.com/smartystreets/goconvey/convey"
 
 	storageConstants "zotregistry.dev/zot/pkg/storage/constants"
@@ -35,6 +35,7 @@ func TestStorageDriver(t *testing.T) {
 		fileName := "testFile"
 		_, err := os.Create(path.Join(rootDir, fileName))
 		So(err, ShouldBeNil)
+
 		result = driver.DirExists(path.Join(rootDir, fileName))
 		So(result, ShouldBeFalse)
 

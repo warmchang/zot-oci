@@ -17,9 +17,9 @@ import (
 	"time"
 
 	// Add s3 support.
-	"github.com/docker/distribution/registry/storage/driver"
-	"github.com/docker/distribution/registry/storage/driver/factory"
-	_ "github.com/docker/distribution/registry/storage/driver/s3-aws"
+	"github.com/distribution/distribution/v3/registry/storage/driver"
+	"github.com/distribution/distribution/v3/registry/storage/driver/factory"
+	_ "github.com/distribution/distribution/v3/registry/storage/driver/s3-aws"
 	guuid "github.com/gofrs/uuid"
 	godigest "github.com/opencontainers/go-digest"
 	ispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -77,11 +77,12 @@ func createObjectsStore(rootDir string, cacheDir string) (
 		"secretkey":      "minioadmin",
 		"secure":         false,
 		"skipverify":     false,
+		"forcepathstyle": true,
 	}
 
 	storeName := fmt.Sprintf("%v", storageDriverParams["name"])
 
-	store, err := factory.Create(storeName, storageDriverParams)
+	store, err := factory.Create(context.Background(), storeName, storageDriverParams)
 	if err != nil {
 		panic(err)
 	}
@@ -138,6 +139,7 @@ func TestGetAllDedupeReposCandidates(t *testing.T) {
 		testcase := testcase
 		t.Run(testcase.testCaseName, func(t *testing.T) {
 			var imgStore storageTypes.ImageStore
+
 			if testcase.storageType == storageConstants.S3StorageDriverName {
 				tskip.SkipS3(t)
 
@@ -207,6 +209,7 @@ func TestStorageAPIs(t *testing.T) {
 		testcase := testcase
 		t.Run(testcase.testCaseName, func(t *testing.T) {
 			var imgStore storageTypes.ImageStore
+
 			if testcase.storageType == storageConstants.S3StorageDriverName {
 				tskip.SkipS3(t)
 
@@ -253,6 +256,7 @@ func TestStorageAPIs(t *testing.T) {
 					v, err := imgStore.ValidateRepo(repoName)
 					So(v, ShouldEqual, false)
 					So(err, ShouldNotBeNil)
+
 					ok := imgStore.DirExists(path.Join(imgStore.RootDir(), repoName))
 					So(ok, ShouldBeFalse)
 				})
@@ -260,8 +264,10 @@ func TestStorageAPIs(t *testing.T) {
 				Convey("Initialize repo", func() {
 					err := imgStore.InitRepo(repoName)
 					So(err, ShouldBeNil)
+
 					ok := imgStore.DirExists(path.Join(imgStore.RootDir(), repoName))
 					So(ok, ShouldBeTrue)
+
 					storeController := storage.StoreController{}
 					storeController.DefaultStore = imgStore
 					So(storeController.GetImageStore("test"), ShouldResemble, imgStore)
@@ -482,6 +488,7 @@ func TestStorageAPIs(t *testing.T) {
 							_, clen, err := imgStore.FullBlobUpload("test", bytes.NewReader(cblob), cdigest)
 							So(err, ShouldBeNil)
 							So(clen, ShouldEqual, len(cblob))
+
 							hasBlob, _, err := imgStore.CheckBlob("test", cdigest)
 							So(err, ShouldBeNil)
 							So(hasBlob, ShouldEqual, true)
@@ -507,6 +514,7 @@ func TestStorageAPIs(t *testing.T) {
 							manifest.SchemaVersion = 2
 							manifestBuf, err = json.Marshal(manifest)
 							So(err, ShouldBeNil)
+
 							digest := godigest.FromBytes(manifestBuf)
 
 							// bad manifest
@@ -699,6 +707,7 @@ func TestStorageAPIs(t *testing.T) {
 							_, clen, err := imgStore.FullBlobUpload("test", bytes.NewReader(cblob), cdigest)
 							So(err, ShouldBeNil)
 							So(clen, ShouldEqual, len(cblob))
+
 							hasBlob, _, err := imgStore.CheckBlob("test", cdigest)
 							So(err, ShouldBeNil)
 							So(hasBlob, ShouldEqual, true)
@@ -720,6 +729,7 @@ func TestStorageAPIs(t *testing.T) {
 							manifest.SchemaVersion = 2
 							manifestBuf, err = json.Marshal(manifest)
 							So(err, ShouldBeNil)
+
 							digest := godigest.FromBytes(manifestBuf)
 							_, _, err = imgStore.PutImageManifest("test", digest.String(),
 								ispec.MediaTypeImageManifest, manifestBuf)
@@ -754,6 +764,7 @@ func TestStorageAPIs(t *testing.T) {
 							So(err, ShouldBeNil)
 
 							So(len(index.Manifests), ShouldEqual, 1)
+
 							err = imgStore.DeleteImageManifest("test", "1.0", false)
 							So(err, ShouldNotBeNil)
 
@@ -785,6 +796,7 @@ func TestStorageAPIs(t *testing.T) {
 					blob, err := imgStore.PutBlobChunkStreamed("replace", upload, buf)
 					So(err, ShouldBeNil)
 					So(blob, ShouldEqual, buflen)
+
 					blobDigest1 := strings.Split(digest.String(), ":")[1]
 					So(blobDigest1, ShouldNotBeEmpty)
 
@@ -796,6 +808,7 @@ func TestStorageAPIs(t *testing.T) {
 					_, clen, err := imgStore.FullBlobUpload("replace", bytes.NewReader(cblob), cdigest)
 					So(err, ShouldBeNil)
 					So(clen, ShouldEqual, len(cblob))
+
 					hasBlob, _, err := imgStore.CheckBlob("replace", cdigest)
 					So(err, ShouldBeNil)
 					So(hasBlob, ShouldEqual, true)
@@ -837,6 +850,7 @@ func TestStorageAPIs(t *testing.T) {
 					blob, err = imgStore.PutBlobChunkStreamed("replace", upload, buf)
 					So(err, ShouldBeNil)
 					So(blob, ShouldEqual, buflen)
+
 					blobDigest2 := strings.Split(digest.String(), ":")[1]
 					So(blobDigest2, ShouldNotBeEmpty)
 
@@ -848,6 +862,7 @@ func TestStorageAPIs(t *testing.T) {
 					_, clen, err = imgStore.FullBlobUpload("replace", bytes.NewReader(cblob), cdigest)
 					So(err, ShouldBeNil)
 					So(clen, ShouldEqual, len(cblob))
+
 					hasBlob, _, err = imgStore.CheckBlob("replace", cdigest)
 					So(err, ShouldBeNil)
 					So(hasBlob, ShouldEqual, true)
@@ -869,6 +884,7 @@ func TestStorageAPIs(t *testing.T) {
 					manifest.SchemaVersion = 2
 					manifestBuf, err = json.Marshal(manifest)
 					So(err, ShouldBeNil)
+
 					_ = godigest.FromBytes(manifestBuf)
 					_, _, err = imgStore.PutImageManifest("replace", "1.0", ispec.MediaTypeImageManifest, manifestBuf)
 					So(err, ShouldBeNil)
@@ -879,8 +895,10 @@ func TestStorageAPIs(t *testing.T) {
 					var wg sync.WaitGroup
 					for i := 0; i < 1000; i++ {
 						wg.Add(2)
+
 						go func() {
 							var lockLatency time.Time
+
 							defer wg.Done()
 							imgStore.Lock(&lockLatency)
 							func() {}()
@@ -888,12 +906,14 @@ func TestStorageAPIs(t *testing.T) {
 						}()
 						go func() {
 							var lockLatency time.Time
+
 							defer wg.Done()
 							imgStore.RLock(&lockLatency)
 							func() {}()
 							imgStore.RUnlock(&lockLatency)
 						}()
 					}
+
 					wg.Wait()
 				})
 			})
@@ -906,7 +926,9 @@ func TestMandatoryAnnotations(t *testing.T) {
 		testcase := testcase
 		t.Run(testcase.testCaseName, func(t *testing.T) {
 			var imgStore storageTypes.ImageStore
+
 			var testDir, tdir string
+
 			var store driver.StorageDriver
 
 			log := zlog.Logger{Logger: zerolog.New(os.Stdout)}
@@ -1097,7 +1119,9 @@ func TestDeleteBlobsInUse(t *testing.T) {
 		testcase := testcase
 		t.Run(testcase.testCaseName, func(t *testing.T) {
 			var imgStore storageTypes.ImageStore
+
 			var testDir, tdir string
+
 			var store driver.StorageDriver
 
 			log := zlog.Logger{Logger: zerolog.New(os.Stdout)}
@@ -1241,9 +1265,11 @@ func TestDeleteBlobsInUse(t *testing.T) {
 				buflen := buf.Len()
 				digest := godigest.FromBytes(content)
 				So(digest, ShouldNotBeNil)
+
 				blob, err := imgStore.PutBlobChunkStreamed(repoName, upload, buf)
 				So(err, ShouldBeNil)
 				So(blob, ShouldEqual, buflen)
+
 				bdgst1 := digest
 				bsize1 := len(content)
 
@@ -1256,6 +1282,7 @@ func TestDeleteBlobsInUse(t *testing.T) {
 				index.MediaType = ispec.MediaTypeImageIndex
 
 				var cdigest godigest.Digest
+
 				var cblob []byte
 
 				//nolint: dupl
@@ -1294,6 +1321,7 @@ func TestDeleteBlobsInUse(t *testing.T) {
 					manifest.SchemaVersion = 2
 					content, err = json.Marshal(manifest)
 					So(err, ShouldBeNil)
+
 					digest = godigest.FromBytes(content)
 					So(digest, ShouldNotBeNil)
 					_, _, err = imgStore.PutImageManifest(repoName, digest.String(), ispec.MediaTypeImageManifest, content)
@@ -1309,6 +1337,7 @@ func TestDeleteBlobsInUse(t *testing.T) {
 				// upload index image
 				indexContent, err := json.Marshal(index)
 				So(err, ShouldBeNil)
+
 				indexDigest := godigest.FromBytes(indexContent)
 				So(indexDigest, ShouldNotBeNil)
 
@@ -1396,8 +1425,11 @@ func TestReuploadCorruptedBlob(t *testing.T) {
 		testcase := testcase
 		t.Run(testcase.testCaseName, func(t *testing.T) {
 			var imgStore storageTypes.ImageStore
+
 			var testDir, tdir string
+
 			var store driver.StorageDriver
+
 			var driver storageTypes.Driver
 
 			log := zlog.Logger{Logger: zerolog.New(os.Stdout)}
@@ -1528,16 +1560,24 @@ func TestStorageHandler(t *testing.T) {
 		testcase := testcase
 		t.Run(testcase.testCaseName, func(t *testing.T) {
 			var firstStore storageTypes.ImageStore
+
 			var secondStore storageTypes.ImageStore
+
 			var thirdStore storageTypes.ImageStore
+
 			var firstRootDir string
+
 			var secondRootDir string
+
 			var thirdRootDir string
 
 			if testcase.storageType == storageConstants.S3StorageDriverName {
 				tskip.SkipS3(t)
+
 				var firstStorageDriver driver.StorageDriver
+
 				var secondStorageDriver driver.StorageDriver
+
 				var thirdStorageDriver driver.StorageDriver
 
 				firstRootDir = "/util_test1"
@@ -1627,6 +1667,7 @@ func TestGarbageCollectImageManifest(t *testing.T) {
 			Convey("Repo layout", t, func(c C) {
 				Convey("Garbage collect with default/long delay", func() {
 					var imgStore storageTypes.ImageStore
+
 					if testcase.storageType == storageConstants.S3StorageDriverName {
 						tskip.SkipS3(t)
 
@@ -1693,6 +1734,7 @@ func TestGarbageCollectImageManifest(t *testing.T) {
 					_, clen, err := imgStore.FullBlobUpload(repoName, bytes.NewReader(cblob), cdigest)
 					So(err, ShouldBeNil)
 					So(clen, ShouldEqual, len(cblob))
+
 					hasBlob, _, err := imgStore.CheckBlob(repoName, cdigest)
 					So(err, ShouldBeNil)
 					So(hasBlob, ShouldEqual, true)
@@ -1716,6 +1758,7 @@ func TestGarbageCollectImageManifest(t *testing.T) {
 					manifest.SchemaVersion = 2
 					manifestBuf, err := json.Marshal(manifest)
 					So(err, ShouldBeNil)
+
 					digest := godigest.FromBytes(manifestBuf)
 
 					_, _, err = imgStore.PutImageManifest(repoName, tag, ispec.MediaTypeImageManifest, manifestBuf)
@@ -1883,6 +1926,7 @@ func TestGarbageCollectImageManifest(t *testing.T) {
 					_, clen, err := imgStore.FullBlobUpload(repoName, bytes.NewReader(cblob), cdigest)
 					So(err, ShouldBeNil)
 					So(clen, ShouldEqual, len(cblob))
+
 					hasBlob, _, err := imgStore.CheckBlob(repoName, cdigest)
 					So(err, ShouldBeNil)
 					So(hasBlob, ShouldEqual, true)
@@ -1906,6 +1950,7 @@ func TestGarbageCollectImageManifest(t *testing.T) {
 					manifest.SchemaVersion = 2
 					manifestBuf, err := json.Marshal(manifest)
 					So(err, ShouldBeNil)
+
 					digest := godigest.FromBytes(manifestBuf)
 
 					_, _, err = imgStore.PutImageManifest(repoName, tag, ispec.MediaTypeImageManifest, manifestBuf)
@@ -2142,6 +2187,7 @@ func TestGarbageCollectImageManifest(t *testing.T) {
 					_, clen, err := imgStore.FullBlobUpload(repo1Name, bytes.NewReader(cblob), cdigest)
 					So(err, ShouldBeNil)
 					So(clen, ShouldEqual, len(cblob))
+
 					hasBlob, _, err := imgStore.CheckBlob(repo1Name, cdigest)
 					So(err, ShouldBeNil)
 					So(hasBlob, ShouldEqual, true)
@@ -2205,6 +2251,7 @@ func TestGarbageCollectImageManifest(t *testing.T) {
 					_, clen, err = imgStore.FullBlobUpload(repo2Name, bytes.NewReader(cblob), cdigest)
 					So(err, ShouldBeNil)
 					So(clen, ShouldEqual, len(cblob))
+
 					hasBlob, _, err = imgStore.CheckBlob(repo2Name, cdigest)
 					So(err, ShouldBeNil)
 					So(hasBlob, ShouldEqual, true)
@@ -2261,6 +2308,7 @@ func TestGarbageCollectImageManifest(t *testing.T) {
 					_, clen, err = imgStore.FullBlobUpload(repo2Name, bytes.NewReader(cblob), cdigest)
 					So(err, ShouldBeNil)
 					So(clen, ShouldEqual, len(cblob))
+
 					hasBlob, _, err = imgStore.CheckBlob(repo2Name, cdigest)
 					So(err, ShouldBeNil)
 					So(hasBlob, ShouldEqual, true)
@@ -2284,6 +2332,7 @@ func TestGarbageCollectImageManifest(t *testing.T) {
 					manifest.SchemaVersion = 2
 					manifestBuf, err = json.Marshal(manifest)
 					So(err, ShouldBeNil)
+
 					digest := godigest.FromBytes(manifestBuf)
 
 					_, _, err = imgStore.PutImageManifest(repo2Name, tag, ispec.MediaTypeImageManifest, manifestBuf)
@@ -2320,6 +2369,7 @@ func TestGarbageCollectImageIndex(t *testing.T) {
 			Convey("Repo layout", t, func(c C) {
 				Convey("Garbage collect with default/long delay", func() {
 					var imgStore storageTypes.ImageStore
+
 					if testcase.storageType == storageConstants.S3StorageDriverName {
 						tskip.SkipS3(t)
 
@@ -2821,6 +2871,7 @@ func TestGarbageCollectChainedImageIndexes(t *testing.T) {
 				index.MediaType = ispec.MediaTypeImageIndex
 
 				var digest godigest.Digest
+
 				for i := 0; i < 4; i++ { //nolint: dupl
 					// upload image config blob
 					upload, err := imgStore.NewBlobUpload(repoName)
@@ -2856,6 +2907,7 @@ func TestGarbageCollectChainedImageIndexes(t *testing.T) {
 					manifest.SchemaVersion = 2
 					content, err = json.Marshal(manifest)
 					So(err, ShouldBeNil)
+
 					digest = godigest.FromBytes(content)
 					So(digest, ShouldNotBeNil)
 					_, _, err = imgStore.PutImageManifest(repoName, digest.String(), ispec.MediaTypeImageManifest, content)
@@ -2938,6 +2990,7 @@ func TestGarbageCollectChainedImageIndexes(t *testing.T) {
 					manifest.SchemaVersion = 2
 					content, err = json.Marshal(manifest)
 					So(err, ShouldBeNil)
+
 					digest := godigest.FromBytes(content)
 					So(digest, ShouldNotBeNil)
 					_, _, err = imgStore.PutImageManifest(repoName, digest.String(), ispec.MediaTypeImageManifest, content)
@@ -2953,6 +3006,7 @@ func TestGarbageCollectChainedImageIndexes(t *testing.T) {
 				// upload inner index image
 				innerIndexContent, err := json.Marshal(index)
 				So(err, ShouldBeNil)
+
 				innerIndexDigest := godigest.FromBytes(innerIndexContent)
 				So(innerIndexDigest, ShouldNotBeNil)
 
@@ -2971,6 +3025,7 @@ func TestGarbageCollectChainedImageIndexes(t *testing.T) {
 				// upload index image
 				indexContent, err := json.Marshal(index)
 				So(err, ShouldBeNil)
+
 				indexDigest := godigest.FromBytes(indexContent)
 				So(indexDigest, ShouldNotBeNil)
 
@@ -3241,6 +3296,7 @@ func pushRandomImageIndex(imgStore storageTypes.ImageStore, repoName string,
 		manifest.SchemaVersion = 2
 		content, err = json.Marshal(manifest)
 		So(err, ShouldBeNil)
+
 		digest = godigest.FromBytes(content)
 		So(digest, ShouldNotBeNil)
 		_, _, err = imgStore.PutImageManifest(repoName, digest.String(), ispec.MediaTypeImageManifest, content)
@@ -3256,6 +3312,7 @@ func pushRandomImageIndex(imgStore storageTypes.ImageStore, repoName string,
 	// upload index image
 	indexContent, err := json.Marshal(index)
 	So(err, ShouldBeNil)
+
 	indexDigest := godigest.FromBytes(indexContent)
 	So(indexDigest, ShouldNotBeNil)
 

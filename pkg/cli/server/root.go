@@ -590,6 +590,7 @@ func applyDefaultValues(config *config.Config, viperInstance *viper.Viper, log z
 					defaultDBDownloadURL := "ghcr.io/aquasecurity/trivy-db"
 					log.Info().Str("url", defaultDBDownloadURL).Str("component", "config").
 						Msg("using default trivy-db download URL.")
+
 					config.Extensions.Search.CVE.Trivy.DBRepository = defaultDBDownloadURL
 				}
 
@@ -597,6 +598,7 @@ func applyDefaultValues(config *config.Config, viperInstance *viper.Viper, log z
 					defaultJavaDBDownloadURL := "ghcr.io/aquasecurity/trivy-java-db"
 					log.Info().Str("url", defaultJavaDBDownloadURL).Str("component", "config").
 						Msg("using default trivy-java-db download URL.")
+
 					config.Extensions.Search.CVE.Trivy.JavaDBRepository = defaultJavaDBDownloadURL
 				}
 			}
@@ -618,7 +620,7 @@ func applyDefaultValues(config *config.Config, viperInstance *viper.Viper, log z
 			}
 
 			if config.Extensions.Scrub.Interval == 0 {
-				config.Extensions.Scrub.Interval = 24 * time.Hour //nolint: gomnd
+				config.Extensions.Scrub.Interval = 24 * time.Hour //nolint:mnd
 			}
 		}
 
@@ -651,7 +653,7 @@ func applyDefaultValues(config *config.Config, viperInstance *viper.Viper, log z
 
 	// apply deleteUntagged default
 	for idx := range config.Storage.Retention.Policies {
-		if !viperInstance.IsSet("storage::retention::policies::" + fmt.Sprint(idx) + "::deleteUntagged") {
+		if !viperInstance.IsSet("storage::retention::policies::" + strconv.Itoa(idx) + "::deleteUntagged") {
 			config.Storage.Retention.Policies[idx].DeleteUntagged = &defaultVal
 		}
 	}
@@ -666,16 +668,32 @@ func applyDefaultValues(config *config.Config, viperInstance *viper.Viper, log z
 		config.Storage.RemoteCache = true
 	}
 
-	// s3 dedup=false, check for previous dedupe usage and set to true if cachedb found
-	if !config.Storage.Dedupe && config.Storage.StorageDriver != nil {
-		cacheDir, _ := config.Storage.StorageDriver["rootdirectory"].(string)
-		cachePath := path.Join(cacheDir, storageConstants.BoltdbName+storageConstants.DBExtensionName)
+	if config.Storage.StorageDriver != nil {
+		// s3 dedup=false, check for previous dedupe usage and set to true if cachedb found
+		if !config.Storage.Dedupe {
+			cacheDir, _ := config.Storage.StorageDriver["rootdirectory"].(string)
+			cachePath := path.Join(cacheDir, storageConstants.BoltdbName+storageConstants.DBExtensionName)
 
-		if _, err := os.Stat(cachePath); err == nil {
-			log.Info().Str("component", "config").Msg("dedupe set to false for s3 driver but used to be true.")
-			log.Info().Str("cache path", cachePath).Msg("found cache database")
+			if _, err := os.Stat(cachePath); err == nil {
+				log.Info().Str("component", "config").Msg("dedupe set to false for s3 driver but used to be true.")
+				log.Info().Str("cache path", cachePath).Msg("found cache database")
 
-			config.Storage.RemoteCache = false
+				config.Storage.RemoteCache = false
+			}
+		}
+
+		// backward compatibility for s3 storage driver
+		// if regionendpoint is provided, forcepathstyle should be set to true
+		// ref: https://github.com/distribution/distribution/pull/4291
+		if config.Storage.StorageDriver["name"] == storageConstants.S3StorageDriverName {
+			_, hasRegionEndpoint := config.Storage.StorageDriver["regionendpoint"]
+			_, hasForcePathStyle := config.Storage.StorageDriver["forcepathstyle"]
+
+			if hasRegionEndpoint && !hasForcePathStyle {
+				log.Warn().
+					Msg("deprecated: automatically setting forcepathstyle to true for s3 storage driver.")
+				config.Storage.StorageDriver["forcepathstyle"] = true
+			}
 		}
 	}
 
@@ -720,7 +738,9 @@ func applyDefaultValues(config *config.Config, viperInstance *viper.Viper, log z
 
 		// apply deleteUntagged default
 		for idx := range storageConfig.Retention.Policies {
-			deleteUntaggedKey := "storage::subpaths::" + name + "::retention::policies::" + fmt.Sprint(idx) + "::deleteUntagged"
+			deleteUntaggedKey := fmt.Sprintf("storage::subpaths::%s::retention::policies::%d::deleteUntagged",
+				name, idx,
+			)
 			if !viperInstance.IsSet(deleteUntaggedKey) {
 				storageConfig.Retention.Policies[idx].DeleteUntagged = &defaultVal
 			}
