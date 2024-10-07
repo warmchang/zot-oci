@@ -554,10 +554,14 @@ func (is *ImageStore) PutImageManifest(repo, reference, mediaType string, //noli
 	dir := path.Join(is.rootDir, repo, ispec.ImageBlobsDir, mDigest.Algorithm().String())
 	manifestPath := path.Join(dir, mDigest.Encoded())
 
-	if _, err = is.storeDriver.WriteFile(manifestPath, body); err != nil {
-		is.log.Error().Err(err).Str("file", manifestPath).Msg("failed to write")
+	binfo, err := is.storeDriver.Stat(manifestPath)
+	if err != nil || binfo.Size() != desc.Size {
+		// The blob isn't already there, or it is corrupted, and needs a correction
+		if _, err = is.storeDriver.WriteFile(manifestPath, body); err != nil {
+			is.log.Error().Err(err).Str("file", manifestPath).Msg("failed to write")
 
-		return "", "", err
+			return "", "", err
+		}
 	}
 
 	err = common.UpdateIndexWithPrunedImageManifests(is, &index, repo, desc, oldDgst, is.log)
@@ -566,6 +570,14 @@ func (is *ImageStore) PutImageManifest(repo, reference, mediaType string, //noli
 	}
 
 	// now update "index.json"
+	for midx, manifest := range index.Manifests {
+		_, ok := manifest.Annotations[ispec.AnnotationRefName]
+		if !ok && manifest.Digest.String() == desc.Digest.String() {
+			// matching descriptor does not have a tag, we need to remove it and add the new descriptor
+			index.Manifests = append(index.Manifests[:midx], index.Manifests[midx+1:]...)
+		}
+	}
+
 	index.Manifests = append(index.Manifests, desc)
 
 	// update the descriptors artifact type in order to check for signatures when applying the linter
@@ -626,7 +638,8 @@ func (is *ImageStore) deleteImageManifest(repo, reference string, detectCollisio
 
 	/* check if manifest is referenced in image indexes, do not allow index images manipulations
 	(ie. remove manifest being part of an image index)	*/
-	if manifestDesc.MediaType == ispec.MediaTypeImageManifest {
+	if zcommon.IsDigest(reference) &&
+		(manifestDesc.MediaType == ispec.MediaTypeImageManifest || manifestDesc.MediaType == ispec.MediaTypeImageIndex) {
 		for _, mDesc := range index.Manifests {
 			if mDesc.MediaType == ispec.MediaTypeImageIndex {
 				if ok, _ := common.IsBlobReferencedInImageIndex(is, repo, manifestDesc.Digest, ispec.Index{
@@ -1621,6 +1634,11 @@ func (is *ImageStore) CleanupRepo(repo string, blobs []godigest.Digest, removeRe
 		}
 	}
 
+	// finally update metrics
+	if is.storeDriver.Name() == storageConstants.LocalStorageDriverName {
+		monitoring.SetStorageUsage(is.metrics, is.rootDir, repo)
+	}
+
 	return count, nil
 }
 
@@ -1912,7 +1930,7 @@ func (is *ImageStore) dedupeBlobs(ctx context.Context, digest godigest.Digest, d
 				}
 
 				// cache original blob
-				if ok := is.cache.HasBlob(digest, originalBlob); !ok {
+				if _, err := is.cache.GetBlob(digest); err != nil {
 					if err := is.cache.PutBlob(digest, originalBlob); err != nil {
 						return err
 					}

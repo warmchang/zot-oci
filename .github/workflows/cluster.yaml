@@ -14,7 +14,7 @@ permissions: read-all
 jobs:
   client-tools:
     name: Stateless zot with shared reliable storage
-    runs-on: ubuntu-latest-4-cores
+    runs-on: ubuntu-latest
     # services:
     #   minio:
     #     image: minio/minio:RELEASE.2024-07-16T23-46-41Z
@@ -44,6 +44,12 @@ jobs:
 
           # install haproxy
           sudo apt-get install haproxy
+
+      - name: Build binaries
+        run: |
+          cd $GITHUB_WORKSPACE
+          make binary
+          make bench
 
       - name: Setup minio service
         run: |
@@ -92,18 +98,33 @@ jobs:
       - name: Prepare configuration files
         run: |
             cp test/cluster/config-minio.json test/cluster/config-minio1.json
-            sed -i 's/8081/8082/g' test/cluster/config-minio.json
+            sed -i 's/8081/8081/g' test/cluster/config-minio1.json
+            sed -i 's/\/tmp\/zot/\/tmp\/zot1/g' test/cluster/config-minio1.json
             cp test/cluster/config-minio.json test/cluster/config-minio2.json
-            sed -i 's/8082/8083/g' test/cluster/config-minio.json
+            sed -i 's/8081/8082/g' test/cluster/config-minio2.json
+            sed -i 's/\/tmp\/zot/\/tmp\/zot2/g' test/cluster/config-minio2.json
             cp test/cluster/config-minio.json test/cluster/config-minio3.json
+            sed -i 's/8081/8083/g' test/cluster/config-minio3.json
+            sed -i 's/\/tmp\/zot/\/tmp\/zot3/g' test/cluster/config-minio3.json
+
+      - name: Free up disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          # This might remove tools that are actually needed, if set to "true" but frees about 6 GB
+          tool-cache: true
+          # All of these default to true, but feel free to set to "false" if necessary for your workflow
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          swap-storage: true
 
       - name: Run push-pull tests
         run: |
-            make binary
             ./bin/zot-linux-amd64 serve test/cluster/config-minio1.json &
             ./bin/zot-linux-amd64 serve test/cluster/config-minio2.json &
             ./bin/zot-linux-amd64 serve test/cluster/config-minio3.json &
-            sleep 10
+            sleep 20
             # run tests
             skopeo --debug copy --format=oci --dest-tls-verify=false docker://ghcr.io/project-zot/golang:1.20 docker://localhost:8080/golang:1.20
             skopeo --debug copy --src-tls-verify=false docker://localhost:8080/golang:1.20 oci:golang:1.20
@@ -127,11 +148,10 @@ jobs:
 
       - name: Run benchmark with --src-cidr arg
         run: |
-            make bench
             ./bin/zot-linux-amd64 serve test/cluster/config-minio1.json &
             ./bin/zot-linux-amd64 serve test/cluster/config-minio2.json &
             ./bin/zot-linux-amd64 serve test/cluster/config-minio3.json &
-            sleep 10
+            sleep 20
             # run zb with --src-cidr
             bin/zb-linux-amd64 -c 10 -n 50 -o ci-cd --src-cidr 127.0.0.0/8 http://localhost:8080
 
@@ -145,11 +165,10 @@ jobs:
 
       - name: Run benchmark with --src-ips arg
         run: |
-            make bench
             ./bin/zot-linux-amd64 serve test/cluster/config-minio1.json &
             ./bin/zot-linux-amd64 serve test/cluster/config-minio2.json &
             ./bin/zot-linux-amd64 serve test/cluster/config-minio3.json &
-            sleep 10
+            sleep 20
             # run zb with --src-ips
             bin/zb-linux-amd64 -c 10 -n 50 -o ci-cd --src-ips 127.0.0.2,127.0.0.3,127.0.0.4,127.0.0.5,127.0.0.6,127.0.12.5,127.0.12.6 http://localhost:8080
 

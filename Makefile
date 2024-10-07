@@ -25,11 +25,12 @@ CRICTL_VERSION := v1.26.1
 ACTION_VALIDATOR := $(TOOLSDIR)/bin/action-validator
 ACTION_VALIDATOR_VERSION := v0.5.3
 ZUI_BUILD_PATH := ""
-ZUI_VERSION := commit-9de2337
+ZUI_VERSION := commit-3178209
 ZUI_REPO_OWNER := project-zot
 ZUI_REPO_NAME := zui
 SWAGGER_VERSION := v1.16.2
 STACKER := $(TOOLSDIR)/bin/stacker
+STACKER_VERSION := v0.40.5
 BATS := $(TOOLSDIR)/bin/bats
 TESTDATA := $(TOP_LEVEL)/test/data
 OS ?= $(shell go env GOOS)
@@ -236,7 +237,7 @@ $(TESTDATA): check-skopeo
 .PHONY: run-bench
 run-bench: binary bench
 	bin/zot-$(OS)-$(ARCH) serve examples/config-bench.json & echo $$! > zot.PID
-	sleep 5
+	curl --connect-timeout 3 --max-time 5 --retry 60 --retry-delay 1 --retry-max-time 180 --retry-connrefused http://localhost:8080/v2/
 	bin/zb-$(OS)-$(ARCH) -c 10 -n 100 -o $(BENCH_OUTPUT) http://localhost:8080
 	@if [ -e zot.PID ]; then \
 		kill -TERM $$(cat zot.PID) || true; \
@@ -535,7 +536,7 @@ fuzz-all:
 
 $(STACKER): check-linux
 	mkdir -p $(TOOLSDIR)/bin; \
-	curl -fsSL https://github.com/project-stacker/stacker/releases/latest/download/stacker -o $@; \
+	curl -fsSL https://github.com/project-stacker/stacker/releases/download/$(STACKER_VERSION)/stacker -o $@; \
 	chmod +x $@
 
 $(COSIGN):
